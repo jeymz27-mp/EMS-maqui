@@ -23,7 +23,8 @@ import {
 import { Employee } from '../../types/ems';
 
 export function ManagerEmployees() {
-  const { employees, attendanceRecords, leaveRequests, tasks } = useEMS();
+  const { employees, attendanceRecords, leaveRequests, tasks, sendDefaultPassword } = useEMS();
+  const [isSendingPass, setIsSendingPass] = useState(false);
 
   const [topTab, setTopTab] = useState<'list' | 'attendance'>('list');
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,7 +60,7 @@ export function ManagerEmployees() {
   if (activeEmployee) {
     return (
       <div className="space-y-4 animate-in fade-in duration-200">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <button
             onClick={() => setActiveEmployee(null)}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-[#F2F7F5] text-[#3D6B5F] rounded-xl text-xs font-bold border border-[#CDE0DA] transition-colors cursor-pointer"
@@ -67,9 +68,27 @@ export function ManagerEmployees() {
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Employee</span>
           </button>
-          <span className="text-xs font-mono text-white/90">
-            Dossier: {activeEmployee.firstName} {activeEmployee.lastName}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                setIsSendingPass(true);
+                try {
+                  await sendDefaultPassword(activeEmployee.id);
+                } finally {
+                  setIsSendingPass(false);
+                }
+              }}
+              disabled={isSendingPass}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#2A8257] hover:bg-[#206744] text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              title="Generate and dispatch fresh default password via EmailJS"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>{isSendingPass ? 'Sending via EmailJS...' : 'Email Default Password'}</span>
+            </button>
+            <span className="text-xs font-mono text-white/90 hidden sm:inline">
+              Dossier: {activeEmployee.firstName} {activeEmployee.lastName}
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useEMS } from '../../context/EMSContext';
-import { Sparkles, X, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Sparkles, X, Eye, EyeOff, ShieldCheck, Mail, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function AuthModal({
   isOpen,
@@ -11,15 +11,53 @@ export default function AuthModal({
   isOpen: boolean;
   onClose?: () => void;
 }) {
-  const { login, activateAccount, forgotPassword, employees } = useEMS();
+  const { login, activateAccount, forgotPassword, sendDefaultPassword, employees } = useEMS();
 
   const [mode, setMode] = useState<'login' | 'activate' | 'forgot'>('login');
 
   // Login form state
-  const [loginId, setLoginId] = useState('james.pantas@company.com');
-  const [loginPassword, setLoginPassword] = useState('Password123!');
+  const [loginId, setLoginId] = useState('pantasjeymz@gmail.com');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [isSendingDefaultPass, setIsSendingDefaultPass] = useState(false);
+  const [emailSuccessMsg, setEmailSuccessMsg] = useState<{
+    text: string;
+    isSimulated: boolean;
+    defaultPassword?: string;
+  } | null>(null);
+
+  const handleSendDefaultPassword = async (targetId?: string) => {
+    const idToUse = (targetId || loginId || actEmpId || actEmail || forgotId).trim();
+    setEmailSuccessMsg(null);
+    setLoginError('');
+
+    if (!idToUse) {
+      setLoginError('Please enter your Company Email or Employee ID first.');
+      return;
+    }
+
+    setIsSendingDefaultPass(true);
+    try {
+      const res = await sendDefaultPassword(idToUse);
+      if (!res.success) {
+        setLoginError(res.message);
+      } else {
+        setEmailSuccessMsg({
+          text: res.message,
+          isSimulated: res.isSimulated,
+          defaultPassword: res.defaultPassword,
+        });
+        if (res.defaultPassword) {
+          setLoginPassword(res.defaultPassword);
+        }
+      }
+    } catch {
+      setLoginError('Failed to dispatch default password.');
+    } finally {
+      setIsSendingDefaultPass(false);
+    }
+  };
 
   // Activation form state
   const [actEmpId, setActEmpId] = useState('EMP-2026-005');
@@ -102,12 +140,12 @@ export default function AuthModal({
   const setDemoUser = (type: 'james' | 'sarah' | 'newhire') => {
     if (type === 'james') {
       setMode('login');
-      setLoginId('james.pantas@company.com');
+      setLoginId('pantasjeymz@gmail.com');
       setLoginPassword('Password123!');
       setLoginError('');
     } else if (type === 'sarah') {
       setMode('login');
-      setLoginId('sarah.jenkins@company.com');
+      setLoginId('jeymzpantas@gmail.com');
       setLoginPassword('Password123!');
       setLoginError('');
     } else if (type === 'newhire') {
@@ -184,6 +222,28 @@ export default function AuthModal({
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {emailSuccessMsg && (
+                      <div className="mt-2 p-2.5 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 space-y-1 animate-in fade-in">
+                        <div className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                          <span className="text-[11px]">{emailSuccessMsg.text}</span>
+                        </div>
+                        {emailSuccessMsg.defaultPassword && (
+                          <div className="flex items-center justify-between pt-1 border-t border-emerald-500/30 text-[11px]">
+                            <span className="font-mono text-emerald-100 font-bold">
+                              {emailSuccessMsg.defaultPassword}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setLoginPassword(emailSuccessMsg.defaultPassword || '')}
+                              className="px-2 py-0.5 bg-emerald-500/20 text-emerald-200 rounded font-semibold cursor-pointer"
+                            >
+                              Auto-fill
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {loginError && (

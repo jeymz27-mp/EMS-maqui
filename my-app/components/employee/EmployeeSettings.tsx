@@ -15,7 +15,14 @@ import {
 } from 'lucide-react';
 
 export function EmployeeSettings() {
-  const { currentUser, updateUserProfile, changePassword, toggle2FA, updateSMSPhone } = useEMS();
+  const {
+    currentUser,
+    updateUserProfile,
+    changePassword,
+    toggle2FA,
+    updateSMSPhone,
+    addToast,
+  } = useEMS();
 
   const [activeSubTab, setActiveSubTab] = useState<'profile' | 'security' | 'notification'>('profile');
 
@@ -24,10 +31,10 @@ export function EmployeeSettings() {
   const [firstName, setFirstName] = useState(currentUser?.firstName || 'James');
   const [lastName, setLastName] = useState(currentUser?.lastName || 'Pantas');
   const [email, setEmail] = useState(currentUser?.email || 'james@gmail.com');
-  const [phone, setPhone] = useState(currentUser?.phone || '0912-345-6789');
-  const [bio, setBio] = useState(currentUser?.bio || 'UI/UX Designer');
+  const [phone, setPhone] = useState(currentUser?.phone || '+1 (555) 382-9912');
+  const [bio, setBio] = useState(currentUser?.bio || '');
 
-  // Password state
+  // Password update state
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
@@ -137,7 +144,7 @@ export function EmployeeSettings() {
 
                 <button
                   onClick={() => setIsEditingProfile(!isEditingProfile)}
-                  className="p-2 bg-white text-[#3D6B5F] hover:bg-[#EBF3F0] rounded-xl shadow-sm border border-[#D3E5DE] transition-all"
+                  className="p-2 bg-white text-[#3D6B5F] hover:bg-[#EBF3F0] rounded-xl shadow-sm border border-[#D3E5DE] transition-all cursor-pointer"
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
@@ -149,7 +156,7 @@ export function EmployeeSettings() {
                   <h4 className="text-xs font-bold text-[#1C3630]">Personal Information</h4>
                   <button
                     onClick={() => setIsEditingProfile(!isEditingProfile)}
-                    className="text-xs font-semibold text-[#3D6B5F] hover:underline flex items-center gap-1"
+                    className="text-xs font-semibold text-[#3D6B5F] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                     <span>{isEditingProfile ? 'Cancel' : 'Edit'}</span>
@@ -212,7 +219,7 @@ export function EmployeeSettings() {
 
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-[#2A8257] hover:bg-[#216B47] text-white rounded-xl font-bold shadow-md"
+                      className="px-5 py-2 bg-[#2A8257] hover:bg-[#216B47] text-white rounded-xl font-bold shadow-md cursor-pointer"
                     >
                       Save Information
                     </button>
@@ -314,13 +321,13 @@ export function EmployeeSettings() {
                         setNewPass('');
                         setConfirmPass('');
                       }}
-                      className="px-4 py-2 bg-[#EBF1EE] hover:bg-[#D8E5E0] text-[#3D6B5F] rounded-xl font-bold"
+                      className="px-4 py-2 bg-[#EBF1EE] hover:bg-[#D8E5E0] text-[#3D6B5F] rounded-xl font-bold cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-[#2D4E47] hover:bg-[#203B35] text-white rounded-xl font-bold shadow-md"
+                      className="px-5 py-2 bg-[#2D4E47] hover:bg-[#203B35] text-white rounded-xl font-bold shadow-md cursor-pointer"
                     >
                       Update
                     </button>
@@ -341,7 +348,7 @@ export function EmployeeSettings() {
                   </p>
                   <button
                     onClick={() => toggle2FA(currentUser.id)}
-                    className={`w-full py-2 rounded-xl font-bold text-xs transition-all ${
+                    className={`w-full py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                       currentUser.twoFactorEnabled
                         ? 'bg-[#FDE2DC] text-[#D9381E] border border-[#F8D2C9]'
                         : 'bg-[#2A8257] text-white shadow-md'
@@ -359,7 +366,7 @@ export function EmployeeSettings() {
                   </p>
                   <button
                     onClick={() => setSmsModalOpen(true)}
-                    className="w-full py-2 bg-[#EBF1EE] hover:bg-[#D8E5E0] text-[#3D6B5F] font-bold rounded-xl border border-[#D3E5DE]"
+                    className="w-full py-2 bg-[#EBF1EE] hover:bg-[#D8E5E0] text-[#3D6B5F] font-bold rounded-xl border border-[#D3E5DE] cursor-pointer"
                   >
                     Setup
                   </button>
@@ -367,7 +374,7 @@ export function EmployeeSettings() {
               </div>
             </div>
           ) : (
-            /* Notification Tab */
+            /* Notification Tab (Figma Page 10) */
             <div className="p-6 bg-[#F9FBFB] rounded-2xl border border-[#DCE8E4] space-y-4 text-xs text-[#2C4A42]">
               <h4 className="font-bold text-sm text-[#1C3630]">Notification Preferences</h4>
               <div className="space-y-3">
@@ -403,7 +410,7 @@ export function EmployeeSettings() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setSmsModalOpen(false)}
-                className="px-3 py-1.5 bg-[#EEF4F2] text-[#41635B] rounded-xl font-semibold"
+                className="px-3 py-1.5 bg-[#EEF4F2] text-[#41635B] rounded-xl font-semibold cursor-pointer"
               >
                 Cancel
               </button>
@@ -412,7 +419,7 @@ export function EmployeeSettings() {
                   updateSMSPhone(currentUser.id, smsPhone);
                   setSmsModalOpen(false);
                 }}
-                className="px-3 py-1.5 bg-[#2A8257] text-white rounded-xl font-bold"
+                className="px-3 py-1.5 bg-[#2A8257] text-white rounded-xl font-bold cursor-pointer"
               >
                 Save Phone
               </button>

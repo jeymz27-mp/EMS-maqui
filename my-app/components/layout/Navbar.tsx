@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Sparkles,
 } from 'lucide-react';
+import { SupabaseModal } from '../ui/SupabaseModal';
 
 interface NavbarProps {
   onOpenAuth: () => void;
@@ -19,7 +20,15 @@ interface NavbarProps {
 }
 
 export function Navbar({ onOpenAuth, activeTab, setActiveTab }: NavbarProps) {
-  const { currentUser, clockIn, clockOut, getTodayAttendance, activities } = useEMS();
+  const {
+    currentUser,
+    clockIn,
+    clockOut,
+    getTodayAttendance,
+    activities,
+    isSupabaseModalOpen,
+    setIsSupabaseModalOpen,
+  } = useEMS();
   const [searchTerm, setSearchTerm] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -128,7 +137,7 @@ export function Navbar({ onOpenAuth, activeTab, setActiveTab }: NavbarProps) {
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="w-9 h-9 rounded-full bg-white text-[#2B4B43] hover:bg-white/90 flex items-center justify-center shadow-md transition-colors relative"
+            className="w-9 h-9 rounded-full bg-white text-[#2B4B43] hover:bg-white/90 flex items-center justify-center shadow-md transition-colors relative cursor-pointer"
           >
             <Bell className="w-4 h-4" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full" />
@@ -153,6 +162,12 @@ export function Navbar({ onOpenAuth, activeTab, setActiveTab }: NavbarProps) {
           )}
         </div>
       </div>
+
+      {/* Supabase Interactive Connection Modal */}
+      <SupabaseModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+      />
     </header>
   );
 }

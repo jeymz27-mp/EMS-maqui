@@ -3,7 +3,7 @@ import { Employee, Task, AttendanceRecord, LeaveRequest, Announcement, ActivityF
 export const INITIAL_EMPLOYEES: Employee[] = [
   {
     id: 'EMP-2026-001',
-    email: 'james.pantas@company.com',
+    email: 'pantasjeymz@gmail.com',
     username: 'jpantas',
     password: 'Password123!',
     isActivated: true,
@@ -92,7 +92,7 @@ export const INITIAL_EMPLOYEES: Employee[] = [
   },
   {
     id: 'MGR-2026-101',
-    email: 'sarah.jenkins@company.com',
+    email: 'jeymzpantas@gmail.com',
     username: 'sjenkins',
     password: 'Password123!',
     isActivated: true,

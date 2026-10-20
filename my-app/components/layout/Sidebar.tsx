@@ -12,7 +12,6 @@ import {
   CalendarDays,
   Clock,
   Megaphone,
-  Sparkles,
   RefreshCw,
   LogOut,
   ChevronDown,
@@ -33,7 +32,7 @@ export function Sidebar({
   setIsOpenMobile,
   onOpenHelp,
 }: SidebarProps) {
-  const { currentUser, switchUser, employees, logout, resetAllData } = useEMS();
+  const { currentUser, logout, resetAllData } = useEMS();
 
   const isManager = currentUser?.role === 'manager';
 
@@ -147,47 +146,6 @@ export function Sidebar({
               <HelpCircle className="w-4 h-4 shrink-0" />
               <span>Help & Support</span>
             </button>
-          </div>
-
-          {/* Quick Demo Switcher Pill */}
-          <div className="p-3 bg-[#D8E4E0] rounded-2xl border border-[#C5D7D1] space-y-2 text-xs">
-            <div className="flex items-center justify-between text-[11px] font-bold text-[#35574F]">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                Role Mode
-              </span>
-              <span className="text-[10px] bg-[#4A7268] text-white px-1.5 py-0.2 rounded font-mono">
-                {isManager ? 'Manager' : 'Employee'}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                onClick={() => {
-                  const emp = employees.find((e) => e.role === 'employee');
-                  if (emp) switchUser(emp.id);
-                }}
-                className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center ${
-                  !isManager
-                    ? 'bg-[#4A7268] text-white shadow-sm'
-                    : 'bg-[#C5D8D2] text-[#2F4E46] hover:bg-[#B9CEC7]'
-                }`}
-              >
-                Employee
-              </button>
-              <button
-                onClick={() => {
-                  const mgr = employees.find((e) => e.role === 'manager');
-                  if (mgr) switchUser(mgr.id);
-                }}
-                className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center ${
-                  isManager
-                    ? 'bg-[#4A7268] text-white shadow-sm'
-                    : 'bg-[#C5D8D2] text-[#2F4E46] hover:bg-[#B9CEC7]'
-                }`}
-              >
-                Manager
-              </button>
-            </div>
           </div>
         </div>
 
