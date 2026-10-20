@@ -81,6 +81,8 @@ export interface SendDefaultPasswordParams {
   toName: string;
   employeeId: string;
   defaultPassword: string;
+  role?: string;
+  department?: string;
 }
 
 export interface SendEmailResult {
@@ -100,18 +102,58 @@ export async function sendDefaultPasswordEmail({
   toName,
   employeeId,
   defaultPassword,
+  role,
+  department,
 }: SendDefaultPasswordParams): Promise<SendEmailResult> {
   const config = getEmailJSConfig();
 
-  // Template variables mapping
-  const templateParams = {
+  const formattedRole = role || (employeeId.toUpperCase().startsWith('MGR') ? 'Department Manager' : 'Employee');
+  const formattedDept = department || 'IT';
+  const isMgr = formattedRole === 'Department Manager' || employeeId.toUpperCase().startsWith('MGR');
+  const idLabel = isMgr ? 'Department Manager ID' : 'Employee ID';
+
+  // Template variables mapping with comprehensive aliases for EmailJS templates
+  const templateParams: Record<string, string> = {
+    // Recipient info
     to_name: toName,
+    name: toName,
     to_email: toEmail,
     email: toEmail,
+
+    // IDs: Both Employee ID and Manager ID variables are mapped so no template placeholder is left blank
     employee_id: employeeId,
+    employeeId: employeeId,
+    employee_ID: employeeId,
+    emp_id: employeeId,
+    empId: employeeId,
+    manager_id: employeeId,
+    managerId: employeeId,
+    manager_ID: employeeId,
+    dept_manager_id: employeeId,
+    department_manager_id: employeeId,
+    id: employeeId,
+    user_id: employeeId,
+    userId: employeeId,
+    id_label: idLabel,
+    id_title: idLabel,
+
+    // Passwords
     default_password: defaultPassword,
+    defaultPassword: defaultPassword,
     temporary_password: defaultPassword,
-    message: `Hello ${toName},\n\nYour default password for the Employee Management System (EMS v3.0) is: ${defaultPassword}\n\nPlease use this password and your Employee ID (${employeeId}) to log in.`,
+    temp_password: defaultPassword,
+    password: defaultPassword,
+
+    // Role & Department
+    role: formattedRole,
+    account_role: formattedRole,
+    department: formattedDept,
+    dept: formattedDept,
+    position: isMgr ? `${formattedDept} Department Manager` : 'Staff Associate',
+
+    // Message & Links
+    message: `Hello ${toName},\n\nYour default password for the Employee Management System (EMS v3.0) as ${formattedRole} (${formattedDept}) is: ${defaultPassword}\n\nPlease use this password and your ${idLabel} (${employeeId}) to log in.`,
+    activation_link: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
     system_url: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
   };
 

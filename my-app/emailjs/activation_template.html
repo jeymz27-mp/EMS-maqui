@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EMS Account Activation Credentials</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F0F4F2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E3731;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #F0F4F2; padding: 40px 10px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" width="100%" max-width="600" style="max-width: 600px; background-color: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(30, 55, 49, 0.08); border: 1px solid #D5E5E0;" cellspacing="0" cellpadding="0" border="0">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background-color: #2D4E47; padding: 35px 30px; text-align: center;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center">
+                    <span style="display: inline-block; background-color: #3D635B; color: #7EF2C3; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; padding: 5px 14px; rounded: 20px; border-radius: 20px; border: 1px solid rgba(126, 242, 195, 0.3);">
+                      EMS CLOUD SYSTEM v3.0
+                    </span>
+                    <h1 style="color: #FFFFFF; margin: 15px 0 0 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">
+                      Account Activation Credentials
+                    </h1>
+                    <p style="color: #B5D4CC; margin: 6px 0 0 0; font-size: 13px;">
+                      Official Employee Registration & Temporary Access
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 35px 30px;">
+              <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #2C4841;">
+                Hello <strong>{{to_name}}</strong>,
+              </p>
+              <p style="font-size: 14px; line-height: 1.6; margin: 0 0 25px 0; color: #52776E;">
+                Welcome aboard! Your employee profile has been registered in the <strong>Employee Management System (EMS)</strong>. Please use the system-generated credentials below to complete your first-time account activation:
+              </p>
+
+              <!-- Credentials Box -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #F2F7F5; border: 1.5px dashed #A3C9BE; border-radius: 16px; margin: 0 0 30px 0;">
+                <tr>
+                  <td style="padding: 22px 20px;">
+                    
+                    <!-- Row 1: Company Email -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 14px;">
+                      <tr>
+                        <td width="40%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #5A8077; letter-spacing: 0.5px;">
+                          Company Email
+                        </td>
+                        <td width="60%" style="font-size: 14px; font-weight: 700; color: #1C3630; text-align: right; word-break: break-all;">
+                          {{to_email}}
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Divider -->
+                    <hr style="border: 0; border-top: 1px solid #DCEAE5; margin: 0 0 14px 0;">
+
+                    <!-- Row 2: Assigned Role & Department -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 14px;">
+                      <tr>
+                        <td width="40%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #5A8077; letter-spacing: 0.5px;">
+                          Account Role
+                        </td>
+                        <td width="60%" style="font-size: 13px; font-weight: 700; color: #1C3630; text-align: right;">
+                          <span style="background-color: #E2EFEA; padding: 3px 9px; border-radius: 6px; border: 1px solid #B8D8CD;">
+                            {{role}} ({{department}})
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Divider -->
+                    <hr style="border: 0; border-top: 1px solid #DCEAE5; margin: 0 0 14px 0;">
+
+                    <!-- Row 3: Employee or Manager ID -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 14px;">
+                      <tr>
+                        <td width="40%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #5A8077; letter-spacing: 0.5px;">
+                          {{id_label}}
+                        </td>
+                        <td width="60%" style="font-size: 15px; font-weight: 800; color: #246B4F; text-align: right; font-family: 'Courier New', Courier, monospace;">
+                          <span style="background-color: #E2EFEA; padding: 4px 10px; border-radius: 8px; border: 1px solid #B8D8CD;">
+                            {{employee_id}}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Divider -->
+                    <hr style="border: 0; border-top: 1px solid #DCEAE5; margin: 0 0 14px 0;">
+
+                    <!-- Row 4: Default Temporary Password -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td width="40%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #5A8077; letter-spacing: 0.5px;">
+                          Temporary Password
+                        </td>
+                        <td width="60%" style="font-size: 16px; font-weight: 800; color: #1A3C34; text-align: right; font-family: 'Courier New', Courier, monospace;">
+                          <span style="background-color: #D3ECE3; padding: 5px 12px; border-radius: 8px; border: 1px solid #9CD1BF; letter-spacing: 1px;">
+                            {{default_password}}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Action Button CTA -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 30px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="{{system_url}}" target="_blank" style="display: inline-block; background-color: #24413B; color: #FFFFFF; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 12px; box-shadow: 0 4px 12px rgba(36, 65, 59, 0.25);">
+                      Activate Your Account &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Steps Guide -->
+              <div style="background-color: #FAFDFB; border: 1px solid #E2EDE9; border-radius: 14px; padding: 18px 20px; margin-bottom: 25px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: #2D4E47; text-transform: uppercase; letter-spacing: 0.5px;">
+                  Quick Activation Steps:
+                </h4>
+                <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #4F7269; line-height: 1.6;">
+                  <li style="margin-bottom: 4px;">Click the button above or visit <a href="{{system_url}}" style="color: #206744; font-weight: 600;">{{system_url}}</a>.</li>
+                  <li style="margin-bottom: 4px;">Select <strong>"Activate Account"</strong> and verify your company email.</li>
+                  <li style="margin-bottom: 4px;">Enter your system-assigned {{id_label}} (<code>{{employee_id}}</code>) and the Temporary Password (<code>{{default_password}}</code>).</li>
+                  <li>Set your official permanent password and log in.</li>
+                </ol>
+              </div>
+
+              <!-- Security Disclaimer -->
+              <p style="font-size: 11px; color: #8AA8A1; line-height: 1.5; margin: 0; text-align: center;">
+                🔒 <em>This temporary password is single-use and intended solely for your initial activation. Do not share this message with anyone.</em>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F7FAF9; border-top: 1px solid #E8F0ED; padding: 22px 30px; text-align: center;">
+              <p style="font-size: 12px; font-weight: 700; color: #3D635B; margin: 0 0 4px 0;">
+                Employee Management System (EMS v3.0)
+              </p>
+              <p style="font-size: 11px; color: #8CA9A2; margin: 0;">
+                Figma UI Design &bull; Developed by James Maqui Pantas &bull; Automated Dispatch Service
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useEMS } from '../../context/EMSContext';
-import { Eye, EyeOff, AlertCircle, Mail, CheckCircle2, Loader2, Sparkles, KeyRound, Database } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Mail, CheckCircle2, Loader2, Sparkles, KeyRound, Database, User, ShieldCheck, Briefcase } from 'lucide-react';
 import { SupabaseModal } from '../ui/SupabaseModal';
 
 export function LoginPage() {
@@ -27,7 +27,7 @@ export function LoginPage() {
   const [idError, setIdError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  // Ensure login fields are completely blank by default and on mode change
+  // Ensure login and activation fields are completely blank by default and on mode change
   React.useEffect(() => {
     if (mode === 'login') {
       setLoginId('');
@@ -35,6 +35,16 @@ export function LoginPage() {
       setIdError('');
       setPasswordError('');
       setLoginError('');
+    } else if (mode === 'activate') {
+      setActStep(1);
+      setActEmail('');
+      setActEmpId('');
+      setActDefaultPassword('');
+      setActUsername('');
+      setActPassword('');
+      setActConfirmPassword('');
+      setActError('');
+      setStep1EmailSent(null);
     }
   }, [mode]);
 
@@ -68,13 +78,9 @@ export function LoginPage() {
         setEmailSuccessMsg({
           text: res.message,
           isSimulated: res.isSimulated,
-          defaultPassword: res.defaultPassword,
           email: res.email,
         });
-        if (res.defaultPassword) {
-          setLoginPassword(res.defaultPassword);
-        }
-        if (mode !== 'login') {
+        if (mode === 'forgot') {
           setMode('login');
           setLoginId(idToUse);
         }
@@ -88,6 +94,8 @@ export function LoginPage() {
 
   // Multi-step Account Activation state (Figma Pictures 2, 3 & 4)
   const [actStep, setActStep] = useState<1 | 2 | 3>(1);
+  const [actRole, setActRole] = useState<'employee' | 'manager'>('employee');
+  const [actDepartment, setActDepartment] = useState<'IT' | 'Engineering' | 'Marketing' | 'HR' | 'Finance' | 'Operations'>('IT');
   const [actEmpId, setActEmpId] = useState('');
   const [actEmail, setActEmail] = useState('');
   const [actDefaultPassword, setActDefaultPassword] = useState('');
@@ -99,57 +107,102 @@ export function LoginPage() {
   const [showActConfirmPass, setShowActConfirmPass] = useState(false);
   const [actError, setActError] = useState('');
 
-  // Helper to generate the next unique Employee ID
-  const generateNextEmployeeId = () => {
+  // Step 1: Send Credentials via EmailJS
+  const [isSendingEmailStep1, setIsSendingEmailStep1] = useState(false);
+  const [step1EmailSent, setStep1EmailSent] = useState<{
+    message: string;
+    employeeId?: string;
+    defaultPassword?: string;
+    email: string;
+  } | null>(null);
+
+  const handleStep1SendEmail = async () => {
+    setActError('');
+    const trimmedEmail = actEmail.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setActError('Please enter your Company Email first to receive your ID.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setActError('Please enter a valid company email address.');
+      return;
+    }
+
+    setIsSendingEmailStep1(true);
+    try {
+      const res = await sendDefaultPassword(trimmedEmail, actRole, actDepartment);
+      if (!res.success) {
+        setActError(res.message || 'Failed to dispatch credentials.');
+      } else {
+        setStep1EmailSent({
+          message: res.message,
+          employeeId: res.employeeId,
+          email: res.email || trimmedEmail,
+        });
+      }
+    } finally {
+      setIsSendingEmailStep1(false);
+    }
+  };
+
+  // Helper to generate the next unique Employee/Manager ID
+  const generateNextEmployeeId = (targetRole: 'employee' | 'manager' = actRole) => {
+    const isManagerRole = targetRole === 'manager';
+    const prefix = isManagerRole ? 'MGR-2026-' : 'EMP-2026-';
     const nums = employees
+      .filter((e) =>
+        isManagerRole
+          ? (e.role === 'manager' || e.id.toUpperCase().startsWith('MGR-'))
+          : (e.role === 'employee' || e.id.toUpperCase().startsWith('EMP-'))
+      )
       .map((e) => {
         const match = e.id.match(/\d+$/);
         return match ? parseInt(match[0], 10) : 0;
       })
       .filter((n) => !isNaN(n));
-    const maxNum = nums.length > 0 ? Math.max(...nums) : 5;
+    const maxNum = nums.length > 0 ? Math.max(...nums) : (isManagerRole ? 100 : 5);
     const nextNum = String(maxNum + 1).padStart(3, '0');
-    return `EMP-2026-${nextNum}`;
+    return `${prefix}${nextNum}`;
   };
 
-  // When user inputs email, the system automatically finds or generates the Employee ID
+  // Switch between Employee and Department Manager role in activation
+  const handleRoleChange = (newRole: 'employee' | 'manager') => {
+    setActRole(newRole);
+    if (actError) setActError('');
+  };
+
+  // When user inputs email
   const handleActEmailChange = (emailVal: string) => {
     setActEmail(emailVal);
     if (actError) setActError('');
 
     const trimmed = emailVal.trim().toLowerCase();
     if (!trimmed) {
-      setActEmpId('');
       return;
     }
 
     const found = employees.find((e) => e.email.toLowerCase() === trimmed);
     if (found) {
-      setActEmpId(found.id);
-      if (found.password) {
-        setActDefaultPassword(found.password);
+      if (found.role) {
+        setActRole(found.role);
       }
-      if (found.username) {
+      if (found.department) {
+        setActDepartment(found.department);
+      }
+      if (found.username && !actUsername) {
         setActUsername(found.username);
-      } else {
-        setActUsername(trimmed.split('@')[0]);
       }
-    } else {
-      // System generates unique Employee ID for this new email
-      const nextId = generateNextEmployeeId();
-      setActEmpId(nextId);
-      if (!actDefaultPassword) {
-        setActDefaultPassword('DefaultPass2026!');
-      }
-      setActUsername(trimmed.split('@')[0]);
     }
   };
 
-  // Step 1: "Activate Account" (User inputs Company Email -> System generates/assigns Employee ID)
+  // Step 1: "Activate Account" (User inputs Company Email -> User inputs assigned ID from EmailJS)
   const handleActStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setActError('');
     const trimmedEmail = actEmail.trim().toLowerCase();
+    const trimmedId = actEmpId.trim().toUpperCase();
 
     if (!trimmedEmail) {
       setActError('Please enter your Company Email.');
@@ -162,22 +215,29 @@ export function LoginPage() {
       return;
     }
 
-    const employee = employees.find((emp) => emp.email.toLowerCase() === trimmedEmail);
+    if (!trimmedId) {
+      setActError(`Please enter your ${actRole === 'manager' ? 'Department Manager' : 'Employee'} ID received via EmailJS.`);
+      return;
+    }
+
+    const employee = employees.find(
+      (emp) => emp.email.toLowerCase() === trimmedEmail || emp.id.toUpperCase() === trimmedId
+    );
 
     if (employee && employee.isActivated) {
       setActError('This account is already activated. Please return to log in directly.');
       return;
     }
 
-    let assignedId = actEmpId;
-    if (!assignedId) {
-      assignedId = employee ? employee.id : generateNextEmployeeId();
-      setActEmpId(assignedId);
-    }
+    let assignedId = trimmedId;
+    setActEmpId(assignedId);
 
     if (employee) {
-      if (employee.password && !actDefaultPassword) {
-        setActDefaultPassword(employee.password);
+      if (employee.role) {
+        setActRole(employee.role);
+      }
+      if (employee.department) {
+        setActDepartment(employee.department);
       }
       if (employee.username && !actUsername) {
         setActUsername(employee.username);
@@ -185,14 +245,13 @@ export function LoginPage() {
         setActUsername(trimmedEmail.split('@')[0]);
       }
     } else {
-      if (!actDefaultPassword) {
-        setActDefaultPassword('DefaultPass2026!');
-      }
       if (!actUsername) {
         setActUsername(trimmedEmail.split('@')[0]);
       }
     }
 
+    // Default password starts blank so user enters credentials received from email
+    setActDefaultPassword('');
     setActStep(2);
   };
 
@@ -254,7 +313,7 @@ export function LoginPage() {
 
     setIsActivating(true);
     try {
-      const res = await activateAccount(actEmpId, actEmail, actUsername, actPassword);
+      const res = await activateAccount(actEmpId, actEmail, actUsername, actPassword, actRole, actDepartment);
       if (!res.success) {
         setActError(res.error || 'Account activation failed.');
       } else {
@@ -269,6 +328,8 @@ export function LoginPage() {
         setActPassword('');
         setActConfirmPassword('');
         setActDefaultPassword('');
+        setActRole('employee');
+        setActDepartment('IT');
         setActError('');
       }
     } finally {
@@ -465,23 +526,6 @@ export function LoginPage() {
                           </p>
                         </div>
                       </div>
-                      {emailSuccessMsg.defaultPassword && (
-                        <div className="mt-1 pt-2 border-t border-emerald-500/30 flex items-center justify-between text-[11px]">
-                          <span className="font-mono text-emerald-100 bg-emerald-900/90 px-2 py-0.5 rounded border border-emerald-400/40 font-bold">
-                            {emailSuccessMsg.defaultPassword}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setLoginPassword(emailSuccessMsg.defaultPassword || '');
-                              setPasswordError('');
-                            }}
-                            className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 rounded-lg font-bold border border-emerald-400/30 transition-all cursor-pointer"
-                          >
-                            Auto-fill Password
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -569,7 +613,7 @@ export function LoginPage() {
                     </p>
                     <p className="text-xs text-white/70 font-light leading-relaxed">
                       {actStep === 1
-                        ? 'Enter your official Company Email. Your unique Employee ID will be automatically generated by the system.'
+                        ? 'Enter your official Company Email and the ID dispatched to your email via EmailJS.'
                         : actStep === 2
                         ? 'Authenticate using your temporary default password dispatched by HR or EmailJS.'
                         : 'Set up your permanent username and new secure password to access your EMS portal.'}
@@ -614,6 +658,89 @@ export function LoginPage() {
                     </div>
 
                     <form noValidate onSubmit={handleActStep1} className="space-y-4">
+                      {/* Role Selection: Employee vs Department Manager */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-medium text-white/80">
+                            Account Role / Position Type
+                          </label>
+                          <span className="text-[10px] text-emerald-300 font-medium">
+                            Select access level
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRoleChange('employee')}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+                              actRole === 'employee'
+                                ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                : 'bg-[#385B53] border-white/10 text-white/70 hover:bg-[#3d635b] hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold flex items-center gap-1.5 text-white">
+                                <User className="w-3.5 h-3.5 text-emerald-300" />
+                                Employee
+                              </span>
+                              {actRole === 'employee' && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                              )}
+                            </div>
+                            <span className="text-[10px] text-white/60">
+                              Staff & Team Member
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRoleChange('manager')}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+                              actRole === 'manager'
+                                ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                : 'bg-[#385B53] border-white/10 text-white/70 hover:bg-[#3d635b] hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold flex items-center gap-1.5 text-white">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+                                Dept Manager
+                              </span>
+                              {actRole === 'manager' && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                              )}
+                            </div>
+                            <span className="text-[10px] text-white/60">
+                              Department Head / Lead
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Department Selection */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-medium text-white/80">
+                            Department
+                          </label>
+                          <span className="text-[10px] text-white/60">
+                            Assigned division
+                          </span>
+                        </div>
+                        <select
+                          value={actDepartment}
+                          onChange={(e) => setActDepartment(e.target.value as any)}
+                          className="w-full px-4 py-2.5 bg-[#385B53] rounded-xl text-white text-xs border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all cursor-pointer"
+                        >
+                          <option value="IT" className="bg-[#2D4E47] text-white">IT (Information Technology)</option>
+                          <option value="Engineering" className="bg-[#2D4E47] text-white">Engineering & Tech</option>
+                          <option value="Marketing" className="bg-[#2D4E47] text-white">Marketing & Growth</option>
+                          <option value="HR" className="bg-[#2D4E47] text-white">HR (Human Resources)</option>
+                          <option value="Finance" className="bg-[#2D4E47] text-white">Finance & Accounting</option>
+                          <option value="Operations" className="bg-[#2D4E47] text-white">Operations & Logistics</option>
+                        </select>
+                      </div>
+
                       {/* Company Email - The primary input filled by the user */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
@@ -633,42 +760,83 @@ export function LoginPage() {
                         />
                       </div>
 
-                      {/* Employee ID - Automatically generated by the system */}
+                      {/* Send Credentials Button via EmailJS */}
+                      <div className="pt-0.5 pb-1">
+                        <button
+                          type="button"
+                          onClick={handleStep1SendEmail}
+                          disabled={isSendingEmailStep1 || !actEmail.trim()}
+                          className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/40 hover:to-teal-600/40 border border-emerald-400/40 rounded-xl text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed group active:scale-[0.99]"
+                        >
+                          {isSendingEmailStep1 ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                              <span>Sending Credentials via EmailJS...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-4 h-4 text-emerald-300 group-hover:scale-110 transition-transform" />
+                              <span>
+                                {step1EmailSent
+                                  ? `Resend Credentials to ${actEmail.trim()}`
+                                  : `Send ID & Password to ${actEmail.trim() ? actEmail.trim() : 'Email'}`}
+                              </span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Success notification banner after sending */}
+                        {step1EmailSent && (
+                          <div className="mt-2.5 p-3 bg-emerald-950/80 border border-emerald-400/40 rounded-xl text-xs text-emerald-200 animate-in fade-in space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold flex items-center gap-1.5 text-emerald-300">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                Credentials Dispatched!
+                              </span>
+                              <span className="text-[10px] text-white/60">
+                                Check your inbox
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-white/80 leading-relaxed">
+                              Your {actRole === 'manager' ? 'Department Manager' : 'Employee'} ID and temporary default password have been sent to <strong className="text-white">{step1EmailSent.email}</strong> via EmailJS.
+                            </p>
+                            {step1EmailSent.employeeId && (
+                              <div className="pt-1.5 flex items-center justify-between border-t border-emerald-400/20">
+                                <span className="text-[11px] text-emerald-300/90">
+                                  Your Assigned {actRole === 'manager' ? 'Department Manager' : 'Employee'} ID: <code className="font-mono font-bold text-white bg-emerald-900/80 px-1.5 py-0.5 rounded border border-emerald-400/30">{step1EmailSent.employeeId}</code>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Employee / Department Manager ID - Entered by the user */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label className="block text-xs font-medium text-white/80">
-                            Employee ID
+                            {actRole === 'manager' ? 'Department Manager ID' : 'Employee ID'}
                           </label>
-                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30">
-                            <Sparkles className="w-2.5 h-2.5" />
-                            Generated by System
+                          <span className="text-[10px] text-emerald-300 font-medium">
+                            Enter ID sent to your email
                           </span>
                         </div>
                         <div className="relative">
                           <input
                             type="text"
-                            readOnly
-                            value={actEmpId || (actEmail ? 'Generating ID...' : 'Auto-generated upon email entry')}
-                            placeholder="Auto-generated by system..."
-                            className="w-full px-4 py-3 pl-10 bg-[#2A4841] rounded-xl text-emerald-200 font-mono text-xs border border-white/10 cursor-not-allowed select-all"
+                            value={actEmpId}
+                            onChange={(e) => {
+                              setActEmpId(e.target.value.toUpperCase());
+                              if (actError) setActError('');
+                            }}
+                            placeholder={actRole === 'manager' ? 'Enter Manager ID (e.g. MGR-2026-101)...' : 'Enter Employee ID (e.g. EMP-2026-001)...'}
+                            className="w-full px-4 py-3 pl-10 bg-[#385B53] rounded-xl text-white font-mono text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all uppercase"
                           />
                           <KeyRound className="w-4 h-4 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
                         <p className="text-[10px] text-white/50 mt-1">
-                          System assigns your official Employee ID automatically upon entering your email.
+                          Enter the official {actRole === 'manager' ? 'Department Manager' : 'Employee'} ID dispatched to your email via EmailJS.
                         </p>
-                      </div>
-
-                      {/* Demo new hire fast fill helper */}
-                      <div className="p-2.5 bg-[#385B53]/50 rounded-xl border border-white/5 flex items-center justify-between text-[11px] text-white/70">
-                        <span>New Hire Demo:</span>
-                        <button
-                          type="button"
-                          onClick={() => handleActEmailChange('new.hire@company.com')}
-                          className="text-emerald-300 hover:text-emerald-200 underline font-medium cursor-pointer"
-                        >
-                          Auto-fill new.hire@company.com
-                        </button>
                       </div>
 
                       {actError && (
@@ -769,7 +937,7 @@ export function LoginPage() {
                           <button
                             type="button"
                             disabled={isSendingDefaultPass}
-                            onClick={() => handleSendDefaultPassword(actEmpId)}
+                            onClick={() => handleSendDefaultPassword(actEmail || actEmpId)}
                             className="text-emerald-300 hover:text-emerald-200 underline font-medium cursor-pointer flex items-center gap-1 disabled:opacity-50"
                           >
                             {isSendingDefaultPass ? (
@@ -788,23 +956,6 @@ export function LoginPage() {
                         {emailSuccessMsg && (
                           <div className="p-2 bg-emerald-950/80 rounded-lg border border-emerald-500/30 text-[11px] text-emerald-200 space-y-1 animate-in fade-in">
                             <p>{emailSuccessMsg.text}</p>
-                            {emailSuccessMsg.defaultPassword && (
-                              <div className="flex items-center justify-between pt-1">
-                                <span className="font-mono font-bold text-white bg-emerald-900 px-1.5 py-0.5 rounded">
-                                  {emailSuccessMsg.defaultPassword}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActDefaultPassword(emailSuccessMsg.defaultPassword || '');
-                                    setActError('');
-                                  }}
-                                  className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 rounded font-semibold text-[10px] cursor-pointer"
-                                >
-                                  Auto-fill Password
-                                </button>
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -865,6 +1016,31 @@ export function LoginPage() {
                     </div>
 
                     <form noValidate onSubmit={handleActStep3} className="space-y-3.5">
+                      {/* Account Role & Department Badge */}
+                      <div className="p-3 bg-[#385B53]/60 rounded-xl border border-white/10 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-white/60 text-[10px] uppercase font-bold tracking-wider block">
+                            Activating Account Role
+                          </span>
+                          <span className="text-white font-bold flex items-center gap-1.5 mt-0.5">
+                            {actRole === 'manager' ? (
+                              <>
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>{actDepartment} Department Manager</span>
+                              </>
+                            ) : (
+                              <>
+                                <User className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Employee &bull; {actDepartment} Staff</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-md font-mono text-[11px] font-bold">
+                          {actEmpId}
+                        </span>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-medium text-white/80 mb-1">
                           Default Password

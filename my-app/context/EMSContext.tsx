@@ -85,13 +85,25 @@ interface EMSContextType {
   // Auth
   login: (emailOrId: string, password: string) => { success: boolean; error?: string };
   logout: () => void;
-  activateAccount: (empId: string, email: string, username: string, newPassword: string) => Promise<{ success: boolean; error?: string; supabaseSynced?: boolean }>;
+  activateAccount: (
+    empId: string,
+    email: string,
+    username: string,
+    newPassword: string,
+    role?: UserRole,
+    department?: Employee['department']
+  ) => Promise<{ success: boolean; error?: string; supabaseSynced?: boolean }>;
   forgotPassword: (emailOrId: string, newPassword: string) => { success: boolean; error?: string };
-  sendDefaultPassword: (emailOrId: string) => Promise<{
+  sendDefaultPassword: (
+    emailOrId: string,
+    role?: UserRole,
+    department?: Employee['department']
+  ) => Promise<{
     success: boolean;
     message: string;
     isSimulated: boolean;
     defaultPassword?: string;
+    employeeId?: string;
     email?: string;
   }>;
   switchUser: (employeeId: string) => void;
@@ -434,7 +446,9 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
     empId: string,
     email: string,
     username: string,
-    newPassword: string
+    newPassword: string,
+    role?: UserRole,
+    department?: Employee['department']
   ): Promise<{ success: boolean; error?: string; supabaseSynced?: boolean }> => {
     const trimmedId = empId.trim().toUpperCase();
     const trimmedEmail = email.trim().toLowerCase();
@@ -443,29 +457,42 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       (e) => e.id.toUpperCase() === trimmedId || e.email.toLowerCase() === trimmedEmail
     );
 
+    const chosenRole: UserRole = role || (trimmedId.startsWith('MGR') ? 'manager' : 'employee');
+    const chosenDept = department || 'IT';
+    const isManagerRole = chosenRole === 'manager';
+    const chosenPosition = isManagerRole ? `${chosenDept} Department Manager` : 'Staff Associate';
+
     if (employeeIndex === -1) {
       // System creates a new employee entry with the generated Employee ID
       const nameParts = (username.trim() || trimmedEmail.split('@')[0]).split(/[._-]/);
-      const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'New';
-      const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'Employee';
+      const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : (isManagerRole ? 'Manager' : 'New');
+      const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';
+
+      const defaultId = isManagerRole
+        ? `MGR-2026-${String(employees.length + 101).padStart(3, '0')}`
+        : `EMP-2026-${String(employees.length + 1).padStart(3, '0')}`;
 
       const newEmp: Employee = {
-        id: trimmedId || `EMP-2026-${String(employees.length + 1).padStart(3, '0')}`,
+        id: trimmedId || defaultId,
         email: trimmedEmail,
         username: username.trim() || trimmedEmail.split('@')[0],
         password: newPassword,
         isActivated: true,
-        role: 'employee',
+        role: chosenRole,
         firstName,
         lastName,
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-        position: 'Staff Associate',
-        department: 'IT',
+        avatar: isManagerRole
+          ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80'
+          : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+        position: chosenPosition,
+        department: chosenDept,
         status: 'Active',
         phone: '+1 (555) 300-1122',
-        bio: 'Team member in the Employee Management System.',
+        bio: isManagerRole
+          ? `${chosenDept} Department Manager in the Employee Management System.`
+          : 'Team member in the Employee Management System.',
         dateJoined: new Date().toISOString().split('T')[0],
-        birthday: '1998-05-18',
+        birthday: isManagerRole ? '1992-04-12' : '1998-05-18',
         address: 'Headquarters Office',
         emergencyContact: {
           name: 'Emergency Contact',
@@ -474,14 +501,14 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
         },
         employmentDetails: {
           employmentType: 'Full-Time',
-          workSchedule: '8:00 AM - 5:00 PM (PST)',
-          officeLocation: 'Headquarters - Building B, Floor 3',
-          salary: '$72,000 / yr',
-          reportsTo: 'Sarah Jenkins (IT Department Manager)',
+          workSchedule: isManagerRole ? '8:30 AM - 5:30 PM (PST)' : '8:00 AM - 5:00 PM (PST)',
+          officeLocation: `Headquarters - Building ${chosenDept === 'IT' ? 'B' : 'A'}, Floor 3`,
+          salary: isManagerRole ? '$115,000 / yr' : '$72,000 / yr',
+          reportsTo: isManagerRole ? 'Executive Leadership / CEO' : `${chosenDept} Department Manager`,
         },
         twoFactorEnabled: false,
         leaveBalance: {
-          vacation: { total: 15, used: 0 },
+          vacation: { total: isManagerRole ? 20 : 15, used: 0 },
           sick: { total: 10, used: 0 },
           personal: { total: 5, used: 0 },
           emergency: { total: 3, used: 0 },
@@ -500,7 +527,7 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
           addToast(
             'success',
             'Saved to Supabase!',
-            `Employee record (${newEmp.id}) was successfully saved to your Supabase PostgreSQL database.`
+            `${isManagerRole ? 'Department Manager' : 'Employee'} record (${newEmp.id}) was successfully saved to your Supabase PostgreSQL database.`
           );
         } else {
           addToast(
@@ -517,8 +544,8 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
-      addActivity('security', 'Account Activated', `${newEmp.firstName} ${newEmp.lastName} registered and activated new account (${newEmp.id}).`, `${newEmp.firstName} ${newEmp.lastName}`);
-      addToast('success', 'Account Activated!', `Welcome aboard, ${newEmp.firstName}! Your EMS credentials have been created. Please log in with your password.`);
+      addActivity('security', 'Account Activated', `${newEmp.firstName} ${newEmp.lastName} registered and activated new account as ${isManagerRole ? 'Department Manager' : 'Employee'} (${newEmp.id}).`, `${newEmp.firstName} ${newEmp.lastName}`);
+      addToast('success', 'Account Activated!', `Welcome aboard, ${newEmp.firstName}! Your ${isManagerRole ? 'Manager' : 'Employee'} account has been created. Please log in with your password.`);
       return { success: true, supabaseSynced: dbSynced };
     }
 
@@ -532,6 +559,11 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       username: username.trim() || employee.email.split('@')[0],
       password: newPassword,
       isActivated: true,
+      role: role || employee.role || chosenRole,
+      department: department || employee.department || chosenDept,
+      position: isManagerRole
+        ? `${department || employee.department || chosenDept} Department Manager`
+        : (employee.position && !employee.position.includes('Manager') ? employee.position : 'Staff Associate'),
     };
 
     const newEmployees = [...employees];
@@ -544,7 +576,7 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       const dbRes = await upsertEmployeeInDB(updated);
       if (dbRes.success) {
         dbSynced = true;
-        addToast('success', 'Saved to Supabase!', `Employee (${updated.id}) credentials updated in Supabase cloud.`);
+        addToast('success', 'Saved to Supabase!', `${updated.role === 'manager' ? 'Department Manager' : 'Employee'} (${updated.id}) credentials updated in Supabase cloud.`);
       } else {
         addToast('error', 'Supabase Sync Error', dbRes.error || 'Failed to update user in Supabase.');
       }
@@ -556,8 +588,8 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
-    addActivity('security', 'Account Activated', `${updated.firstName} ${updated.lastName} completed first-time activation.`, `${updated.firstName} ${updated.lastName}`);
-    addToast('success', 'Account Activated!', `Welcome aboard, ${updated.firstName}! Your EMS credentials have been saved. Please log in with your password.`);
+    addActivity('security', 'Account Activated', `${updated.firstName} ${updated.lastName} completed first-time activation as ${updated.role === 'manager' ? 'Department Manager' : 'Employee'}.`, `${updated.firstName} ${updated.lastName}`);
+    addToast('success', 'Account Activated!', `Welcome aboard, ${updated.firstName}! Your credentials have been saved. Please log in with your password.`);
 
     return { success: true, supabaseSynced: dbSynced };
   };
@@ -597,8 +629,17 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
   };
 
   const sendDefaultPassword = async (
-    emailOrId: string
-  ): Promise<{ success: boolean; message: string; isSimulated: boolean; defaultPassword?: string; email?: string }> => {
+    emailOrId: string,
+    role?: UserRole,
+    department?: Employee['department']
+  ): Promise<{
+    success: boolean;
+    message: string;
+    isSimulated: boolean;
+    defaultPassword?: string;
+    employeeId?: string;
+    email?: string;
+  }> => {
     const trimmed = emailOrId.trim().toLowerCase();
     if (!trimmed) {
       return {
@@ -616,20 +657,149 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
     );
 
     if (employeeIndex === -1) {
+      // Support new account activations: generate default password and dispatch to email via EmailJS
+      const targetEmail = trimmed.includes('@') ? trimmed : `${trimmed}@company.com`;
+      const isMgr = role === 'manager' || emailOrId.toUpperCase().startsWith('MGR-');
+
+      let empId = '';
+      if (emailOrId.toUpperCase().startsWith('EMP-') || emailOrId.toUpperCase().startsWith('MGR-')) {
+        empId = emailOrId.toUpperCase();
+      } else {
+        const prefix = isMgr ? 'MGR-2026-' : 'EMP-2026-';
+        const nums = employees
+          .filter((e) =>
+            isMgr
+              ? (e.role === 'manager' || e.id.toUpperCase().startsWith('MGR-'))
+              : (e.role === 'employee' || e.id.toUpperCase().startsWith('EMP-'))
+          )
+          .map((e) => {
+            const match = e.id.match(/\d+$/);
+            return match ? parseInt(match[0], 10) : 0;
+          })
+          .filter((n) => !isNaN(n));
+        const maxNum = nums.length > 0 ? Math.max(...nums) : (isMgr ? 100 : 5);
+        const nextNum = String(maxNum + 1).padStart(3, '0');
+        empId = `${prefix}${nextNum}`;
+      }
+
+      const nameParts = targetEmail.split('@')[0].split(/[._-]/);
+      const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : (isMgr ? 'Manager' : 'New');
+      const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : (isMgr ? 'Lead' : 'Employee');
+
+      const newDefaultPass = generateDefaultPassword();
+      const emailResult = await sendDefaultPasswordEmail({
+        toEmail: targetEmail,
+        toName: `${firstName} ${lastName}`,
+        employeeId: empId,
+        defaultPassword: newDefaultPass,
+        role: isMgr ? 'Department Manager' : 'Employee',
+        department: department || 'IT',
+      });
+
+      const pendingEmp: Employee = {
+        id: empId,
+        firstName,
+        lastName,
+        email: targetEmail,
+        department: department || 'IT',
+        position: isMgr ? `${department || 'IT'} Department Manager` : 'Staff Associate',
+        role: isMgr ? 'manager' : 'employee',
+        status: 'Active',
+        avatar: isMgr
+          ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+          : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+        hireDate: new Date().toISOString().split('T')[0],
+        username: targetEmail.split('@')[0],
+        password: newDefaultPass,
+        isActivated: false,
+        personalInfo: {
+          address: 'Company Headquarters',
+          emergencyContact: 'HR Department',
+          phone: '+1 (555) 999-8877',
+        },
+        employmentDetails: {
+          employmentType: 'Full-Time',
+          workSchedule: isMgr ? '8:30 AM - 5:30 PM (PST)' : '8:00 AM - 5:00 PM (PST)',
+          officeLocation: `Headquarters - Building ${department === 'IT' ? 'B' : 'A'}, Floor 3`,
+          salary: isMgr ? '$115,000 / yr' : '$72,000 / yr',
+          reportsTo: isMgr ? 'Executive Leadership / CEO' : `${department || 'IT'} Department Manager`,
+        },
+        twoFactorEnabled: false,
+        leaveBalance: {
+          vacation: { total: isMgr ? 20 : 15, used: 0 },
+          sick: { total: 10, used: 0 },
+          personal: { total: 5, used: 0 },
+          emergency: { total: 3, used: 0 },
+        },
+        documents: [],
+        performance: [],
+      };
+      setEmployees([pendingEmp, ...employees]);
+
+      if (emailResult.isSimulated) {
+        addToast(
+          'info',
+          'Default Password Dispatched',
+          `Credentials generated for ${targetEmail} (EmailJS keys pending in .env.local).`
+        );
+      } else {
+        addToast(
+          'success',
+          'Email Sent Successfully',
+          `Your ID (${empId}) and default password dispatched to ${targetEmail} via EmailJS.`
+        );
+      }
+
       return {
-        success: false,
-        message: 'No registered employee found with this ID or Email.',
-        isSimulated: false,
+        success: emailResult.success,
+        message: emailResult.message,
+        isSimulated: emailResult.isSimulated,
+        defaultPassword: newDefaultPass,
+        employeeId: empId,
+        email: targetEmail,
       };
     }
 
     const emp = employees[employeeIndex];
     const newDefaultPass = generateDefaultPassword();
+    const isMgrRole = role === 'manager' || (role === undefined && emp.role === 'manager');
+    let effectiveId = emp.id;
+
+    // If pending activation, ensure ID matches the selected role (MGR- vs EMP-)
+    if (!emp.isActivated) {
+      if (isMgrRole && !effectiveId.toUpperCase().startsWith('MGR-')) {
+        const nums = employees
+          .filter((e) => e.role === 'manager' || e.id.toUpperCase().startsWith('MGR-'))
+          .map((e) => {
+            const match = e.id.match(/\d+$/);
+            return match ? parseInt(match[0], 10) : 0;
+          })
+          .filter((n) => !isNaN(n));
+        const maxNum = nums.length > 0 ? Math.max(...nums) : 100;
+        effectiveId = `MGR-2026-${String(maxNum + 1).padStart(3, '0')}`;
+      } else if (!isMgrRole && effectiveId.toUpperCase().startsWith('MGR-')) {
+        const nums = employees
+          .filter((e) => e.role === 'employee' || e.id.toUpperCase().startsWith('EMP-'))
+          .map((e) => {
+            const match = e.id.match(/\d+$/);
+            return match ? parseInt(match[0], 10) : 0;
+          })
+          .filter((n) => !isNaN(n));
+        const maxNum = nums.length > 0 ? Math.max(...nums) : 5;
+        effectiveId = `EMP-2026-${String(maxNum + 1).padStart(3, '0')}`;
+      }
+    }
 
     const updatedEmp: Employee = {
       ...emp,
+      id: effectiveId,
       password: newDefaultPass,
-      isActivated: true,
+      isActivated: emp.isActivated,
+      role: role || emp.role,
+      department: department || emp.department,
+      position: isMgrRole
+        ? `${department || emp.department || 'IT'} Department Manager`
+        : (emp.position && !emp.position.includes('Manager') ? emp.position : 'Staff Associate'),
     };
 
     const newEmployees = [...employees];
@@ -645,7 +815,8 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       try {
         await updateEmployeeInDB(updatedEmp.id, {
           password: newDefaultPass,
-          isActivated: true,
+          role: updatedEmp.role,
+          department: updatedEmp.department,
         });
       } catch (err) {
         console.error('Failed to sync generated default password to Supabase:', err);
@@ -656,8 +827,10 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
     const emailResult = await sendDefaultPasswordEmail({
       toEmail: emp.email,
       toName: `${emp.firstName} ${emp.lastName}`,
-      employeeId: emp.id,
+      employeeId: updatedEmp.id,
       defaultPassword: newDefaultPass,
+      role: isMgrRole ? 'Department Manager' : 'Employee',
+      department: updatedEmp.department || 'IT',
     });
 
     addActivity(
@@ -677,7 +850,7 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       addToast(
         'success',
         'Email Sent Successfully',
-        `Default password dispatched to ${emp.email} via EmailJS.`
+        `Your ${isMgrRole ? 'Manager' : 'Employee'} ID (${updatedEmp.id}) and default password dispatched to ${emp.email} via EmailJS.`
       );
     }
 
@@ -686,6 +859,7 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
       message: emailResult.message,
       isSimulated: emailResult.isSimulated,
       defaultPassword: newDefaultPass,
+      employeeId: updatedEmp.id,
       email: emp.email,
     };
   };
