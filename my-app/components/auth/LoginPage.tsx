@@ -2,10 +2,20 @@
 
 import React, { useState } from 'react';
 import { useEMS } from '../../context/EMSContext';
-import { Eye, EyeOff, AlertCircle, Mail, CheckCircle2, Loader2, Sparkles, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Mail, CheckCircle2, Loader2, Sparkles, KeyRound, Database } from 'lucide-react';
+import { SupabaseModal } from '../ui/SupabaseModal';
 
 export function LoginPage() {
-  const { login, activateAccount, forgotPassword, sendDefaultPassword } = useEMS();
+  const {
+    login,
+    activateAccount,
+    forgotPassword,
+    sendDefaultPassword,
+    employees,
+    isSupabaseActive,
+    isSupabaseModalOpen,
+    setIsSupabaseModalOpen,
+  } = useEMS();
 
   const [mode, setMode] = useState<'login' | 'activate' | 'forgot'>('login');
 
@@ -16,6 +26,17 @@ export function LoginPage() {
   const [loginError, setLoginError] = useState('');
   const [idError, setIdError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+
+  // Ensure login fields are completely blank by default and on mode change
+  React.useEffect(() => {
+    if (mode === 'login') {
+      setLoginId('');
+      setLoginPassword('');
+      setIdError('');
+      setPasswordError('');
+      setLoginError('');
+    }
+  }, [mode]);
 
   // EmailJS Default Password state
   const [isSendingDefaultPass, setIsSendingDefaultPass] = useState(false);
@@ -65,22 +86,197 @@ export function LoginPage() {
     }
   };
 
-  // First Login / Account Activation form state (Figma Page 3)
+  // Multi-step Account Activation state (Figma Pictures 2, 3 & 4)
+  const [actStep, setActStep] = useState<1 | 2 | 3>(1);
   const [actEmpId, setActEmpId] = useState('');
   const [actEmail, setActEmail] = useState('');
+  const [actDefaultPassword, setActDefaultPassword] = useState('');
   const [actUsername, setActUsername] = useState('');
   const [actPassword, setActPassword] = useState('');
   const [actConfirmPassword, setActConfirmPassword] = useState('');
+  const [showDefaultPass, setShowDefaultPass] = useState(false);
   const [showActPass, setShowActPass] = useState(false);
+  const [showActConfirmPass, setShowActConfirmPass] = useState(false);
   const [actError, setActError] = useState('');
 
-  // Forgot password state
-  const [forgotId, setForgotId] = useState('');
-  const [forgotNewPassword, setForgotNewPassword] = useState('');
-  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
-  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
-  const [forgotError, setForgotError] = useState('');
+  // Helper to generate the next unique Employee ID
+  const generateNextEmployeeId = () => {
+    const nums = employees
+      .map((e) => {
+        const match = e.id.match(/\d+$/);
+        return match ? parseInt(match[0], 10) : 0;
+      })
+      .filter((n) => !isNaN(n));
+    const maxNum = nums.length > 0 ? Math.max(...nums) : 5;
+    const nextNum = String(maxNum + 1).padStart(3, '0');
+    return `EMP-2026-${nextNum}`;
+  };
 
+  // When user inputs email, the system automatically finds or generates the Employee ID
+  const handleActEmailChange = (emailVal: string) => {
+    setActEmail(emailVal);
+    if (actError) setActError('');
+
+    const trimmed = emailVal.trim().toLowerCase();
+    if (!trimmed) {
+      setActEmpId('');
+      return;
+    }
+
+    const found = employees.find((e) => e.email.toLowerCase() === trimmed);
+    if (found) {
+      setActEmpId(found.id);
+      if (found.password) {
+        setActDefaultPassword(found.password);
+      }
+      if (found.username) {
+        setActUsername(found.username);
+      } else {
+        setActUsername(trimmed.split('@')[0]);
+      }
+    } else {
+      // System generates unique Employee ID for this new email
+      const nextId = generateNextEmployeeId();
+      setActEmpId(nextId);
+      if (!actDefaultPassword) {
+        setActDefaultPassword('DefaultPass2026!');
+      }
+      setActUsername(trimmed.split('@')[0]);
+    }
+  };
+
+  // Step 1: "Activate Account" (User inputs Company Email -> System generates/assigns Employee ID)
+  const handleActStep1 = (e: React.FormEvent) => {
+    e.preventDefault();
+    setActError('');
+    const trimmedEmail = actEmail.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      setActError('Please enter your Company Email.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setActError('Please enter a valid company email address.');
+      return;
+    }
+
+    const employee = employees.find((emp) => emp.email.toLowerCase() === trimmedEmail);
+
+    if (employee && employee.isActivated) {
+      setActError('This account is already activated. Please return to log in directly.');
+      return;
+    }
+
+    let assignedId = actEmpId;
+    if (!assignedId) {
+      assignedId = employee ? employee.id : generateNextEmployeeId();
+      setActEmpId(assignedId);
+    }
+
+    if (employee) {
+      if (employee.password && !actDefaultPassword) {
+        setActDefaultPassword(employee.password);
+      }
+      if (employee.username && !actUsername) {
+        setActUsername(employee.username);
+      } else if (!actUsername) {
+        setActUsername(trimmedEmail.split('@')[0]);
+      }
+    } else {
+      if (!actDefaultPassword) {
+        setActDefaultPassword('DefaultPass2026!');
+      }
+      if (!actUsername) {
+        setActUsername(trimmedEmail.split('@')[0]);
+      }
+    }
+
+    setActStep(2);
+  };
+
+  // Step 2: "Login Account" (System-assigned Employee ID + Default Password)
+  const handleActStep2 = (e: React.FormEvent) => {
+    e.preventDefault();
+    setActError('');
+    const trimmedDefaultPass = actDefaultPassword.trim();
+
+    if (!trimmedDefaultPass) {
+      setActError('Please enter your default password.');
+      return;
+    }
+
+    const employee = employees.find(
+      (emp) =>
+        emp.email.toLowerCase() === actEmail.trim().toLowerCase() ||
+        emp.id.toLowerCase() === actEmpId.trim().toLowerCase()
+    );
+
+    if (employee && employee.password && employee.password !== trimmedDefaultPass) {
+      setActError('Incorrect default password. Please check your credentials or request a new one via EmailJS.');
+      return;
+    }
+
+    if (!actUsername) {
+      setActUsername(employee?.username || actEmail.trim().split('@')[0]);
+    }
+
+    setActStep(3);
+  };
+
+  const [isActivating, setIsActivating] = useState(false);
+
+  // Step 3: "UPDATE USER CREDENTIALS" (Picture 4: Default Password + Username + Password + Confirm Password)
+  const handleActStep3 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActError('');
+    if (!actDefaultPassword.trim()) {
+      setActError('Please enter your default password.');
+      return;
+    }
+    if (!actUsername.trim() || actUsername.trim().length < 3) {
+      setActError('Username must be at least 3 characters.');
+      return;
+    }
+    if (!actPassword || actPassword.length < 6) {
+      setActError('New password must contain at least 6 characters.');
+      return;
+    }
+    if (actPassword === actDefaultPassword) {
+      setActError('New password cannot be the same as your default temporary password.');
+      return;
+    }
+    if (actPassword !== actConfirmPassword) {
+      setActError('New password and confirm password do not match.');
+      return;
+    }
+
+    setIsActivating(true);
+    try {
+      const res = await activateAccount(actEmpId, actEmail, actUsername, actPassword);
+      if (!res.success) {
+        setActError(res.error || 'Account activation failed.');
+      } else {
+        // Return back to Login screen with blank inputs
+        setMode('login');
+        setLoginId('');
+        setLoginPassword('');
+        setActStep(1);
+        setActEmail('');
+        setActEmpId('');
+        setActUsername('');
+        setActPassword('');
+        setActConfirmPassword('');
+        setActDefaultPassword('');
+        setActError('');
+      }
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  // Login submit handler
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -112,23 +308,12 @@ export function LoginPage() {
     }
   };
 
-  const handleActivationSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setActError('');
-    if (!actPassword || actPassword.length < 6) {
-      setActError('Password must contain at least 6 characters.');
-      return;
-    }
-    if (actPassword !== actConfirmPassword) {
-      setActError('New password and confirm password do not match.');
-      return;
-    }
-
-    const res = activateAccount(actEmpId, actEmail, actUsername, actPassword);
-    if (!res.success) {
-      setActError(res.error || 'Account activation failed.');
-    }
-  };
+  // Forgot password state
+  const [forgotId, setForgotId] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotError, setForgotError] = useState('');
 
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,8 +338,8 @@ export function LoginPage() {
         setForgotError(res.error || 'Reset failed.');
       } else {
         setMode('login');
-        setLoginId(forgotId);
-        setLoginPassword(forgotNewPassword);
+        setLoginId('');
+        setLoginPassword('');
         setForgotStep(1);
       }
     }
@@ -201,13 +386,15 @@ export function LoginPage() {
                   </p>
                 </div>
 
-                <form noValidate onSubmit={handleLoginSubmit} className="space-y-4">
+                <form noValidate onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-white/80 mb-1.5">
                       Company Email / Employee ID
                     </label>
                     <input
                       type="text"
+                      name="ems_login_username"
+                      autoComplete="off"
                       value={loginId}
                       onChange={(e) => {
                         setLoginId(e.target.value);
@@ -236,6 +423,8 @@ export function LoginPage() {
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
+                        name="ems_login_password"
+                        autoComplete="new-password"
                         value={loginPassword}
                         onChange={(e) => {
                           setLoginPassword(e.target.value);
@@ -317,11 +506,12 @@ export function LoginPage() {
                   <button
                     onClick={() => {
                       setMode('activate');
+                      setActStep(1);
                       setActError('');
                     }}
                     className="hover:text-emerald-300 transition-colors font-medium underline cursor-pointer"
                   >
-                    First-login? Activate Account
+                    Activate Account
                   </button>
                   <button
                     onClick={() => {
@@ -354,140 +544,465 @@ export function LoginPage() {
             </div>
           ) : mode === 'activate' ? (
             /* ========================================================================= */
-            /* Figma Page 3: First Login / Account Activation Screen                     */
+            /* Figma Pictures 2, 3 & 4: Multi-Step Account Activation System Flow         */
             /* ========================================================================= */
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-              {/* Left Column: Skyscraper Architectural Photo */}
-              <div className="h-full min-h-[380px] rounded-[24px] overflow-hidden shadow-2xl relative border border-white/10 hidden md:block">
+              {/* Left Column: Skyscraper Architectural Photo with Activation Step Badges */}
+              <div className="h-full min-h-[440px] rounded-[24px] overflow-hidden shadow-2xl relative border border-white/10 hidden md:block">
                 <img
                   src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop&q=80"
                   alt="Modern Corporate Skyscraper"
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#27413B]/80 via-transparent to-transparent flex items-end p-6">
-                  <div className="text-white">
-                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                      Account Activation
+                <div className="absolute inset-0 bg-gradient-to-t from-[#27413B]/90 via-[#27413B]/40 to-transparent flex flex-col justify-end p-6">
+                  <div className="text-white space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 rounded-full border border-emerald-400/30 text-emerald-300 text-[11px] font-bold tracking-wider uppercase mb-1">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Account Activation</span>
+                    </div>
+                    <p className="text-base font-bold text-white">
+                      {actStep === 1
+                        ? 'Step 1 of 3 • Account Verification'
+                        : actStep === 2
+                        ? 'Step 2 of 3 • Default Password Verification'
+                        : 'Step 3 of 3 • Update User Credentials'}
                     </p>
-                    <p className="text-sm font-semibold">First-time login credential setup</p>
+                    <p className="text-xs text-white/70 font-light leading-relaxed">
+                      {actStep === 1
+                        ? 'Enter your official Company Email. Your unique Employee ID will be automatically generated by the system.'
+                        : actStep === 2
+                        ? 'Authenticate using your temporary default password dispatched by HR or EmailJS.'
+                        : 'Set up your permanent username and new secure password to access your EMS portal.'}
+                    </p>
+                  </div>
+
+                  {/* Progress Indicator Dots */}
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        actStep === 1 ? 'w-8 bg-emerald-400' : 'w-2.5 bg-emerald-400/40'
+                      }`}
+                    />
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        actStep === 2 ? 'w-8 bg-emerald-400' : actStep > 2 ? 'w-2.5 bg-emerald-400/40' : 'w-2.5 bg-white/20'
+                      }`}
+                    />
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        actStep === 3 ? 'w-8 bg-emerald-400' : 'w-2.5 bg-white/20'
+                      }`}
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Right Column: Activation Form Container */}
-              <div className="bg-[#2D4E47] p-6 sm:p-8 rounded-[24px] shadow-2xl border border-white/10 text-white space-y-4">
-                <div>
-                  <h1 className="text-3xl font-extrabold tracking-wide text-white">Welcome</h1>
-                  <p className="text-xs text-white/70 mt-0.5 font-light">
-                    Set your personal username and password
-                  </p>
-                </div>
-
-                <form noValidate onSubmit={handleActivationSubmit} className="space-y-3.5">
-                  <div className="grid grid-cols-2 gap-2">
+              {/* Right Column: Dynamic Activation Card according to Figma Picture 2, 3, or 4 */}
+              <div className="bg-[#2D4E47] p-6 sm:p-8 rounded-[24px] shadow-2xl border border-white/10 text-white space-y-5">
+                {/* --------------------------------------------------------------------- */}
+                {/* PICTURE 2: ACTIVATE ACCOUNT (User inputs Email -> System generates ID) */}
+                {/* --------------------------------------------------------------------- */}
+                {actStep === 1 && (
+                  <>
                     <div>
-                      <label className="block text-[11px] font-medium text-white/80 mb-1">
-                        Employee ID
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={actEmpId}
-                        onChange={(e) => setActEmpId(e.target.value)}
-                        placeholder="e.g. EMP-2026-005"
-                        className="w-full px-3 py-2 bg-[#385B53] border border-white/10 rounded-xl text-white text-xs placeholder:text-white/40 focus:outline-none"
-                      />
+                      <h1 className="text-2xl sm:text-3xl font-extrabold tracking-wide text-white">
+                        Activate Account
+                      </h1>
+                      <p className="text-xs text-white/70 mt-1 font-light">
+                        Please enter your email to verify and activate your account
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-white/80 mb-1">
-                        Company Email
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={actEmail}
-                        onChange={(e) => setActEmail(e.target.value)}
-                        placeholder="e.g. new.hire@company.com"
-                        className="w-full px-3 py-2 bg-[#385B53] border border-white/10 rounded-xl text-white text-xs placeholder:text-white/40 focus:outline-none"
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-white/80 mb-1">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={actUsername}
-                      onChange={(e) => setActUsername(e.target.value)}
-                      placeholder="Enter your Username here..."
-                      className="w-full px-4 py-2.5 bg-[#385B53] border border-white/10 rounded-xl text-white text-xs placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                    />
-                  </div>
+                    <form noValidate onSubmit={handleActStep1} className="space-y-4">
+                      {/* Company Email - The primary input filled by the user */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-medium text-white/80">
+                            Company Email
+                          </label>
+                          <span className="text-[10px] text-emerald-300 font-medium">
+                            Type your email here
+                          </span>
+                        </div>
+                        <input
+                          type="email"
+                          value={actEmail}
+                          onChange={(e) => handleActEmailChange(e.target.value)}
+                          placeholder="Enter your company email here..."
+                          className="w-full px-4 py-3 bg-[#385B53] rounded-xl text-white text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-white/80 mb-1">
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showActPass ? 'text' : 'password'}
-                        required
-                        value={actPassword}
-                        onChange={(e) => setActPassword(e.target.value)}
-                        placeholder="Enter your password here..."
-                        className="w-full px-4 py-2.5 pr-10 bg-[#385B53] border border-white/10 rounded-xl text-white text-xs placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
+                      {/* Employee ID - Automatically generated by the system */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-medium text-white/80">
+                            Employee ID
+                          </label>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            Generated by System
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            readOnly
+                            value={actEmpId || (actEmail ? 'Generating ID...' : 'Auto-generated upon email entry')}
+                            placeholder="Auto-generated by system..."
+                            className="w-full px-4 py-3 pl-10 bg-[#2A4841] rounded-xl text-emerald-200 font-mono text-xs border border-white/10 cursor-not-allowed select-all"
+                          />
+                          <KeyRound className="w-4 h-4 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                        <p className="text-[10px] text-white/50 mt-1">
+                          System assigns your official Employee ID automatically upon entering your email.
+                        </p>
+                      </div>
+
+                      {/* Demo new hire fast fill helper */}
+                      <div className="p-2.5 bg-[#385B53]/50 rounded-xl border border-white/5 flex items-center justify-between text-[11px] text-white/70">
+                        <span>New Hire Demo:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleActEmailChange('new.hire@company.com')}
+                          className="text-emerald-300 hover:text-emerald-200 underline font-medium cursor-pointer"
+                        >
+                          Auto-fill new.hire@company.com
+                        </button>
+                      </div>
+
+                      {actError && (
+                        <div className="p-2.5 bg-rose-900/70 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-center gap-1.5 animate-in fade-in">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>{actError}</span>
+                        </div>
+                      )}
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          className="w-full py-3 bg-[#24413B] hover:bg-[#1D3631] text-white font-bold rounded-xl text-xs tracking-wider transition-all shadow-md cursor-pointer border border-white/10 active:scale-[0.99]"
+                        >
+                          Activate Account
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="pt-2 flex items-center justify-between text-[11px] text-white/60 border-t border-white/10">
                       <button
-                        type="button"
-                        onClick={() => setShowActPass(!showActPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                        onClick={() => {
+                          setMode('login');
+                          setActError('');
+                        }}
+                        className="hover:text-emerald-300 transition-colors font-medium underline cursor-pointer"
                       >
-                        {showActPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        Already activated? Return to Log In
                       </button>
                     </div>
-                  </div>
+                  </>
+                )}
 
-                  <div>
-                    <label className="block text-xs font-medium text-white/80 mb-1">
-                      Confirm Password
-                    </label>
-                    <input
-                      type={showActPass ? 'text' : 'password'}
-                      required
-                      value={actConfirmPassword}
-                      onChange={(e) => setActConfirmPassword(e.target.value)}
-                      placeholder="Enter your password here..."
-                      className="w-full px-4 py-2.5 bg-[#385B53] border border-white/10 rounded-xl text-white text-xs placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                    />
-                  </div>
-
-                  {actError && (
-                    <div className="p-2.5 bg-rose-900/70 border border-rose-500/40 rounded-xl text-xs text-rose-200">
-                      {actError}
+                {/* --------------------------------------------------------------------- */}
+                {/* PICTURE 3: LOGIN ACCOUNT (Employee ID + Default Password)              */}
+                {/* --------------------------------------------------------------------- */}
+                {actStep === 2 && (
+                  <>
+                    <div>
+                      <h1 className="text-2xl sm:text-3xl font-extrabold tracking-wide text-white">
+                        Login Account
+                      </h1>
+                      <p className="text-xs text-white/70 mt-1 font-light">
+                        Enter your temporary default password to continue
+                      </p>
                     </div>
-                  )}
 
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      className="w-full py-3 bg-[#24413B] hover:bg-[#1D3631] text-white font-bold rounded-xl text-xs tracking-wider transition-all shadow-md cursor-pointer border border-white/10 active:scale-[0.99]"
-                    >
-                      Save & Continue
-                    </button>
-                  </div>
-                </form>
+                    <form noValidate onSubmit={handleActStep2} className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-medium text-white/80">
+                            Employee ID
+                          </label>
+                          <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                            System Assigned
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            readOnly
+                            value={actEmpId}
+                            className="w-full px-4 py-3 pl-10 bg-[#2A4841] rounded-xl text-emerald-200 font-mono text-xs border border-white/10 cursor-not-allowed select-all"
+                          />
+                          <KeyRound className="w-4 h-4 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </div>
 
-                <div className="text-center pt-3 border-t border-white/10">
-                  <button
-                    onClick={() => setMode('login')}
-                    className="text-xs text-white/70 hover:text-emerald-300 underline cursor-pointer"
-                  >
-                    Already activated? Return to Log In
-                  </button>
-                </div>
+                      <div>
+                        <label className="block text-xs font-medium text-white/80 mb-1.5">
+                          Default Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showDefaultPass ? 'text' : 'password'}
+                            value={actDefaultPassword}
+                            onChange={(e) => {
+                              setActDefaultPassword(e.target.value);
+                              if (actError) setActError('');
+                            }}
+                            placeholder="Enter your password here..."
+                            className="w-full px-4 py-3 pr-10 bg-[#385B53] rounded-xl text-white text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowDefaultPass(!showDefaultPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white cursor-pointer"
+                          >
+                            {showDefaultPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* EmailJS default password dispatch / auto-fill helper */}
+                      <div className="p-3 bg-[#385B53]/50 rounded-xl border border-white/10 space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-[11px] text-white/70">
+                          <span>Need temporary password sent?</span>
+                          <button
+                            type="button"
+                            disabled={isSendingDefaultPass}
+                            onClick={() => handleSendDefaultPassword(actEmpId)}
+                            className="text-emerald-300 hover:text-emerald-200 underline font-medium cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {isSendingDefaultPass ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <span>Sending...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="w-3 h-3" />
+                                <span>Send via EmailJS</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        {emailSuccessMsg && (
+                          <div className="p-2 bg-emerald-950/80 rounded-lg border border-emerald-500/30 text-[11px] text-emerald-200 space-y-1 animate-in fade-in">
+                            <p>{emailSuccessMsg.text}</p>
+                            {emailSuccessMsg.defaultPassword && (
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="font-mono font-bold text-white bg-emerald-900 px-1.5 py-0.5 rounded">
+                                  {emailSuccessMsg.defaultPassword}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActDefaultPassword(emailSuccessMsg.defaultPassword || '');
+                                    setActError('');
+                                  }}
+                                  className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 rounded font-semibold text-[10px] cursor-pointer"
+                                >
+                                  Auto-fill Password
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {actError && (
+                        <div className="p-2.5 bg-rose-900/70 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-center gap-1.5 animate-in fade-in">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>{actError}</span>
+                        </div>
+                      )}
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          className="w-full py-3 bg-[#24413B] hover:bg-[#1D3631] text-white font-bold rounded-xl text-xs tracking-wider transition-all shadow-md cursor-pointer border border-white/10 active:scale-[0.99]"
+                        >
+                          Activate Account
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="pt-2 flex items-center justify-between text-[11px] text-white/60 border-t border-white/10">
+                      <button
+                        onClick={() => {
+                          setActStep(1);
+                          setActError('');
+                        }}
+                        className="hover:text-emerald-300 transition-colors font-medium underline cursor-pointer"
+                      >
+                        ← Back to Step 1
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMode('login');
+                          setActError('');
+                        }}
+                        className="hover:text-emerald-300 transition-colors font-medium underline cursor-pointer"
+                      >
+                        Return to Log In
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* --------------------------------------------------------------------- */}
+                {/* PICTURE 4: UPDATE USER CREDENTIALS                                     */}
+                {/* (Default Password, Username, Password, Confirm Password -> Save)        */}
+                {/* --------------------------------------------------------------------- */}
+                {actStep === 3 && (
+                  <>
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-extrabold tracking-wide text-white uppercase">
+                        UPDATE USER CREDENTIALS
+                      </h1>
+                      <p className="text-xs text-white/70 mt-1 font-light">
+                        Set your permanent username and new secure password
+                      </p>
+                    </div>
+
+                    <form noValidate onSubmit={handleActStep3} className="space-y-3.5">
+                      <div>
+                        <label className="block text-xs font-medium text-white/80 mb-1">
+                          Default Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showDefaultPass ? 'text' : 'password'}
+                            value={actDefaultPassword}
+                            onChange={(e) => {
+                              setActDefaultPassword(e.target.value);
+                              if (actError) setActError('');
+                            }}
+                            placeholder="Enter your password here..."
+                            className="w-full px-4 py-2.5 pr-10 bg-[#385B53] rounded-xl text-white text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowDefaultPass(!showDefaultPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white cursor-pointer"
+                          >
+                            {showDefaultPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-white/80 mb-1">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          value={actUsername}
+                          onChange={(e) => {
+                            setActUsername(e.target.value);
+                            if (actError) setActError('');
+                          }}
+                          placeholder="Enter your username here..."
+                          className="w-full px-4 py-2.5 bg-[#385B53] rounded-xl text-white text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-white/80 mb-1">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showActPass ? 'text' : 'password'}
+                            value={actPassword}
+                            onChange={(e) => {
+                              setActPassword(e.target.value);
+                              if (actError) setActError('');
+                            }}
+                            placeholder="Enter your password here..."
+                            className="w-full px-4 py-2.5 pr-10 bg-[#385B53] rounded-xl text-white text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowActPass(!showActPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white cursor-pointer"
+                          >
+                            {showActPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-white/80 mb-1">
+                          Confirm Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showActConfirmPass ? 'text' : 'password'}
+                            value={actConfirmPassword}
+                            onChange={(e) => {
+                              setActConfirmPassword(e.target.value);
+                              if (actError) setActError('');
+                            }}
+                            placeholder="Enter your password here..."
+                            className="w-full px-4 py-2.5 pr-10 bg-[#385B53] rounded-xl text-white text-xs placeholder:text-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowActConfirmPass(!showActConfirmPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white cursor-pointer"
+                          >
+                            {showActConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {actError && (
+                        <div className="p-2.5 bg-rose-900/70 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-center gap-1.5 animate-in fade-in">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>{actError}</span>
+                        </div>
+                      )}
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isActivating}
+                          className="w-full py-3 bg-[#24413B] hover:bg-[#1D3631] text-white font-bold rounded-xl text-xs tracking-wider transition-all shadow-md cursor-pointer border border-white/10 active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isActivating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                              <span>Saving & Activating...</span>
+                            </>
+                          ) : (
+                            <span>Save</span>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="pt-2 flex items-center justify-between text-[11px] text-white/60 border-t border-white/10">
+                      <button
+                        onClick={() => {
+                          setActStep(2);
+                          setActError('');
+                        }}
+                        className="hover:text-emerald-300 transition-colors font-medium underline cursor-pointer"
+                      >
+                        ← Back to Step 2
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMode('login');
+                          setActError('');
+                        }}
+                        className="hover:text-emerald-300 transition-colors font-medium underline cursor-pointer"
+                      >
+                        Return to Log In
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -586,6 +1101,12 @@ export function LoginPage() {
           )}
         </div>
       </div>
+
+      {/* Supabase Connection & Configuration Modal */}
+      <SupabaseModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+      />
     </div>
   );
 }

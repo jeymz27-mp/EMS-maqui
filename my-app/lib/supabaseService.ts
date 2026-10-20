@@ -259,28 +259,28 @@ export async function fetchEmployeesFromDB(): Promise<Employee[] | null> {
   return data ? data.map(mapEmployeeFromDB) : [];
 }
 
-export async function upsertEmployeeInDB(emp: Employee): Promise<boolean> {
+export async function upsertEmployeeInDB(emp: Employee): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabase();
-  if (!supabase) return false;
+  if (!supabase) return { success: false, error: 'Supabase client is not configured.' };
   const row = mapEmployeeToDB(emp);
   const { error } = await supabase.from('employees').upsert(row, { onConflict: 'id' });
   if (error) {
-    console.error('Error upserting employee:', error);
-    return false;
+    console.error('Error upserting employee to Supabase:', error);
+    return { success: false, error: error.message };
   }
-  return true;
+  return { success: true };
 }
 
-export async function updateEmployeeInDB(id: string, updates: Partial<Employee>): Promise<boolean> {
+export async function updateEmployeeInDB(id: string, updates: Partial<Employee>): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabase();
-  if (!supabase) return false;
+  if (!supabase) return { success: false, error: 'Supabase client is not configured.' };
   const row = mapEmployeeToDB(updates);
   const { error } = await supabase.from('employees').update(row).eq('id', id);
   if (error) {
     console.error('Error updating employee in DB:', error);
-    return false;
+    return { success: false, error: error.message };
   }
-  return true;
+  return { success: true };
 }
 
 export async function fetchTasksFromDB(): Promise<Task[] | null> {

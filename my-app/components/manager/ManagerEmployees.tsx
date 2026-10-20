@@ -34,22 +34,27 @@ export function ManagerEmployees() {
   const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
   const [dossierTab, setDossierTab] = useState<'overview' | 'performance' | 'leave' | 'attendance' | 'notes'>('overview');
 
-  // Sample static roster data matching Figma Pages 14 & 15
-  const rosterData = [
-    { id: 'EMP-001', name: 'Juan Dela Cruz', email: 'juan.delacruz@company.com', position: 'Staff', dept: 'IT Department', status: 'Active' },
-    { id: 'EMP-002', name: 'Maria Santos', email: 'maria.santos@company.com', position: 'Staff', dept: 'IT Department', status: 'Active' },
-    { id: 'EMP-003', name: 'Carlo Reyes', email: 'carlo.reyes@company.com', position: 'Developer', dept: 'IT Department', status: 'Active' },
-    { id: 'EMP-004', name: 'Ana Garcia', email: 'ana.garcia@company.com', position: 'QA Engineer', dept: 'IT Department', status: 'Active' },
-    { id: 'EMP-005', name: 'Paul Mendoza', email: 'paul.mendoza@company.com', position: 'System Admin', dept: 'IT Department', status: 'Active' },
-    { id: 'EMP-006', name: 'Liza Ramos', email: 'liza.ramos@company.com', position: 'HR Assistant', dept: 'HR Department', status: 'Active' },
-    { id: 'EMP-007', name: 'Mark Reyes', email: 'mark.reyes@company.com', position: 'Accountant', dept: 'Finance Department', status: 'On leave' },
-    { id: 'EMP-008', name: 'Samantha Lee', email: 'samantha.lee@company.com', position: 'Marketing Specialist', dept: 'Marketing Department', status: 'Active' },
-  ];
+  // Dynamic roster data connected to live Supabase / local employees state
+  const rosterData = employees.map((emp) => ({
+    id: emp.id,
+    name: `${emp.firstName} ${emp.lastName}`.trim(),
+    email: emp.email,
+    position: emp.position || 'Staff',
+    dept: emp.department
+      ? emp.department.includes('Department')
+        ? emp.department
+        : `${emp.department} Department`
+      : 'General Department',
+    status: emp.status || 'Active',
+    raw: emp,
+  }));
 
   const filteredRoster = rosterData.filter((emp) => {
     const matchesSearch =
       emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.position.toLowerCase().includes(searchTerm.toLowerCase());
+      emp.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDept =
       selectedDept === 'ALL' ||
       emp.dept.toLowerCase().includes(selectedDept.toLowerCase());
@@ -361,8 +366,7 @@ export function ManagerEmployees() {
                 <td className="py-3 px-3 text-right">
                   <button
                     onClick={() => {
-                      const found = employees.find((e) => e.firstName.includes(emp.name.split(' ')[0])) || employees[0];
-                      setActiveEmployee(found);
+                      setActiveEmployee(emp.raw);
                     }}
                     className="px-3 py-1 bg-[#EEF5F2] hover:bg-[#D5E4DE] text-[#3D6B5F] rounded-lg text-xs font-bold transition-all cursor-pointer"
                   >
@@ -377,7 +381,9 @@ export function ManagerEmployees() {
 
       {/* Pagination row (Figma Page 14) */}
       <div className="flex items-center justify-between text-xs text-[#6C8E85] pt-3 border-t border-[#E7EFEA]">
-        <span>Showing 1 to 8 of 35 employees</span>
+        <span>
+          Showing {filteredRoster.length === 0 ? 0 : 1} to {filteredRoster.length} of {employees.length} employees
+        </span>
         <div className="flex items-center gap-1">
           <button className="w-6 h-6 rounded bg-[#3D6B5F] text-white font-bold text-xs flex items-center justify-center">
             1

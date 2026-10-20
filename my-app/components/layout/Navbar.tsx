@@ -10,6 +10,7 @@ import {
   Square,
   CheckCircle2,
   Sparkles,
+  Database,
 } from 'lucide-react';
 import { SupabaseModal } from '../ui/SupabaseModal';
 
@@ -26,6 +27,7 @@ export function Navbar({ onOpenAuth, activeTab, setActiveTab }: NavbarProps) {
     clockOut,
     getTodayAttendance,
     activities,
+    isSupabaseActive,
     isSupabaseModalOpen,
     setIsSupabaseModalOpen,
   } = useEMS();
@@ -94,6 +96,7 @@ export function Navbar({ onOpenAuth, activeTab, setActiveTab }: NavbarProps) {
 
       {/* Right: Search Bar, Quick Punch Widget & Notifications */}
       <div className="flex items-center gap-3">
+
         {/* Quick Punch widget */}
         {currentUser && (
           <div className="hidden sm:flex items-center gap-1.5 bg-[#3B5F56] border border-white/15 px-3 py-1.5 rounded-full text-xs text-white">

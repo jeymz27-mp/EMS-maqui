@@ -198,18 +198,27 @@ CREATE POLICY "Allow public write activities" ON public.activities FOR ALL USING
 -- Allows browser clients to instantly receive live notifications & changes
 -- ============================================================================
 DO $$
+DECLARE
+  tbl text;
+  tbls text[] := ARRAY['employees', 'tasks', 'attendance_records', 'leave_requests', 'announcements', 'activities'];
 BEGIN
+  -- Create publication if not yet created
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
     CREATE PUBLICATION supabase_realtime;
   END IF;
-END $$;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.leave_requests;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.announcements;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.activities;
+  -- Add tables only if they are not already members of the publication
+  FOREACH tbl IN ARRAY tbls LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' 
+        AND schemaname = 'public' 
+        AND tablename = tbl
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', tbl);
+    END IF;
+  END LOOP;
+END $$;
 
 -- ============================================================================
 -- 6. ENTERPRISE INITIAL SEED DATA

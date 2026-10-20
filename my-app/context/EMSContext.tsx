@@ -85,7 +85,7 @@ interface EMSContextType {
   // Auth
   login: (emailOrId: string, password: string) => { success: boolean; error?: string };
   logout: () => void;
-  activateAccount: (empId: string, email: string, username: string, newPassword: string) => { success: boolean; error?: string };
+  activateAccount: (empId: string, email: string, username: string, newPassword: string) => Promise<{ success: boolean; error?: string; supabaseSynced?: boolean }>;
   forgotPassword: (emailOrId: string, newPassword: string) => { success: boolean; error?: string };
   sendDefaultPassword: (emailOrId: string) => Promise<{
     success: boolean;
@@ -430,7 +430,12 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
   };
 
-  const activateAccount = (empId: string, email: string, username: string, newPassword: string) => {
+  const activateAccount = async (
+    empId: string,
+    email: string,
+    username: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string; supabaseSynced?: boolean }> => {
     const trimmedId = empId.trim().toUpperCase();
     const trimmedEmail = email.trim().toLowerCase();
 
@@ -439,7 +444,82 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
     );
 
     if (employeeIndex === -1) {
-      return { success: false, error: 'Employee ID and Company Email combination not found in company roster.' };
+      // System creates a new employee entry with the generated Employee ID
+      const nameParts = (username.trim() || trimmedEmail.split('@')[0]).split(/[._-]/);
+      const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'New';
+      const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'Employee';
+
+      const newEmp: Employee = {
+        id: trimmedId || `EMP-2026-${String(employees.length + 1).padStart(3, '0')}`,
+        email: trimmedEmail,
+        username: username.trim() || trimmedEmail.split('@')[0],
+        password: newPassword,
+        isActivated: true,
+        role: 'employee',
+        firstName,
+        lastName,
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+        position: 'Staff Associate',
+        department: 'IT',
+        status: 'Active',
+        phone: '+1 (555) 300-1122',
+        bio: 'Team member in the Employee Management System.',
+        dateJoined: new Date().toISOString().split('T')[0],
+        birthday: '1998-05-18',
+        address: 'Headquarters Office',
+        emergencyContact: {
+          name: 'Emergency Contact',
+          relationship: 'Family',
+          phone: '+1 (555) 999-8877',
+        },
+        employmentDetails: {
+          employmentType: 'Full-Time',
+          workSchedule: '8:00 AM - 5:00 PM (PST)',
+          officeLocation: 'Headquarters - Building B, Floor 3',
+          salary: '$72,000 / yr',
+          reportsTo: 'Sarah Jenkins (IT Department Manager)',
+        },
+        twoFactorEnabled: false,
+        leaveBalance: {
+          vacation: { total: 15, used: 0 },
+          sick: { total: 10, used: 0 },
+          personal: { total: 5, used: 0 },
+          emergency: { total: 3, used: 0 },
+        },
+        documents: [],
+        performance: [],
+      };
+
+      setEmployees([newEmp, ...employees]);
+
+      let dbSynced = false;
+      if (isSupabaseConfigured()) {
+        const dbRes = await upsertEmployeeInDB(newEmp);
+        if (dbRes.success) {
+          dbSynced = true;
+          addToast(
+            'success',
+            'Saved to Supabase!',
+            `Employee record (${newEmp.id}) was successfully saved to your Supabase PostgreSQL database.`
+          );
+        } else {
+          addToast(
+            'error',
+            'Supabase Sync Error',
+            `Saved locally, but failed to save to Supabase: ${dbRes.error || 'Unknown error'}. Make sure schema.sql has been run in your Supabase SQL Editor.`
+          );
+        }
+      } else {
+        addToast(
+          'warning',
+          'Supabase Not Connected',
+          'Account activated in local browser mode. Supabase credentials are not configured yet. Click the "Database" button at the top right to configure Supabase URL & Key.'
+        );
+      }
+
+      addActivity('security', 'Account Activated', `${newEmp.firstName} ${newEmp.lastName} registered and activated new account (${newEmp.id}).`, `${newEmp.firstName} ${newEmp.lastName}`);
+      addToast('success', 'Account Activated!', `Welcome aboard, ${newEmp.firstName}! Your EMS credentials have been created. Please log in with your password.`);
+      return { success: true, supabaseSynced: dbSynced };
     }
 
     const employee = employees[employeeIndex];
@@ -457,17 +537,29 @@ export function EMSProvider({ children }: { children: React.ReactNode }) {
     const newEmployees = [...employees];
     newEmployees[employeeIndex] = updated;
     setEmployees(newEmployees);
-    setCurrentUser(updated);
 
     // Sync to Supabase
+    let dbSynced = false;
     if (isSupabaseConfigured()) {
-      upsertEmployeeInDB(updated).catch((err) => console.error('Failed to sync activation to Supabase:', err));
+      const dbRes = await upsertEmployeeInDB(updated);
+      if (dbRes.success) {
+        dbSynced = true;
+        addToast('success', 'Saved to Supabase!', `Employee (${updated.id}) credentials updated in Supabase cloud.`);
+      } else {
+        addToast('error', 'Supabase Sync Error', dbRes.error || 'Failed to update user in Supabase.');
+      }
+    } else {
+      addToast(
+        'warning',
+        'Supabase Not Connected',
+        'Saved to local storage only. Click the "Database" button at the top to configure your Supabase URL & Key.'
+      );
     }
 
     addActivity('security', 'Account Activated', `${updated.firstName} ${updated.lastName} completed first-time activation.`, `${updated.firstName} ${updated.lastName}`);
-    addToast('success', 'Account Activated!', `Welcome aboard, ${updated.firstName}! Your EMS credentials have been saved.`);
+    addToast('success', 'Account Activated!', `Welcome aboard, ${updated.firstName}! Your EMS credentials have been saved. Please log in with your password.`);
 
-    return { success: true };
+    return { success: true, supabaseSynced: dbSynced };
   };
 
   const forgotPassword = (emailOrId: string, newPassword: string) => {
